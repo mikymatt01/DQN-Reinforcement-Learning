@@ -6,9 +6,11 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.optimizers import Adam
 import math
+import os
+import matplotlib.pyplot as plt
 
-EPOCHS = 2000
-THRESHOLD = 45
+EPOCHS = 1000
+THRESHOLD = 25
 
 data=[
 	{
@@ -66,16 +68,19 @@ class DATA():
 		print("lunghezza schiena\t", l)
 		print("peso\t\t\t", p)
 		print("circonferenza collo\t", c)
-		return [a,l,p,c]
+		return [[a,l,p,c], i]
 
-	def step(self, action):
-		result = format(int(input('inserisci risposta giusta: (action : ' + str(action) + ')')), "b")
+	def step(self, action, result):
+		result = format(int(result), "b")
 		result = [int(x) for x in result]
 		for _ in range(len(result), self.output):
 			result.insert(0, 0)
 		print("neural action is:{} and your action is:{}".format(action, result))
-		self.question=self.question-1
-		done = 1 if self.question==0 else 0
+		if self.question<=0:
+			done, self.question = True, 10  
+		else: 
+			done, self.question = False, self.question - 1
+		
 		self.success = self.success+1 if action==result else self.success
 		reward = self.reward if action==result else 0
 		return self.randomQuestion(), reward, done, 0 #next_state, reward, done, _
@@ -106,6 +111,10 @@ class DQN():
 		self.model.add(Dense(24,input_dim=input, activation='tanh'))
 		self.model.add(Dense(48, activation='tanh'))
 		self.model.add(Dense(output, activation='tanh')) #prevision must be 1 output
+		try:
+			self.model.load_weights('test2.h5')
+		except:
+			print("weights doesn't exist")
 		self.model.compile(loss='mse', optimizer=Adam(learning_rate=alpha, decay=alpha_decay))
 		self.model.summary()
 
@@ -123,7 +132,7 @@ class DQN():
 	#to avoid catastrophic forgetting
 	def replay(self, batch_size):
 		x_batch, y_batch = [], []
-		minibatch = random.sample(self.memory, min(len(self.memory), batch_size)) #take random batches up to batch_size in a memory
+		minbatch = random.sample(self.memory, min(len(self.memory), batch_size)) #take random batches up to batch_size in a memory
 		for state, action, reward, next_state, done in minbatch:
 			y_target = self.model.predict(state)
 			y_target[0][action] = reward if done else reward + self.gamma * np.max(self.model.predict(next_state)[0])
@@ -137,13 +146,14 @@ class DQN():
 		avg_scores = []
 
 		for e in range(EPOCHS):
+			env=DATA()
 			done = False
 			i = 0
-			state = self.env.randomQuestion()
+			[state,result] = self.env.randomQuestion()
 			state = self.env.preprocessState(state)
 			while not done:
 				action = self.choose_action(state,self.epsilon)
-				next_state, reward, done, _ = self.env.step(action)
+				[next_state, result], reward, done, _ = self.env.step(action, result)
 				next_state = self.env.preprocessState(next_state)
 				self.remember(state, action, reward, next_state, done)
 				state = next_state
@@ -153,6 +163,8 @@ class DQN():
 			scores.append(i)
 			mean_score = np.mean(scores)
 			avg_scores.append(mean_score)
+			os.system("clear")
+			print("epochs:{} mean_score:{}".format(e, mean_score))
 			if mean_score >= THRESHOLD and e >= 100:
 				print('Ran {} episodes. Solved after {} trials ✔'.format(e, e - 100))
 				return avg_scores
@@ -160,6 +172,9 @@ class DQN():
 
 		print('Did not solve after {} episodes 😞'.format(e))
 		return avg_scores
+
+	def save(self):
+		self.model.save_weights('test2.h5', save_format='h5')
 '''
 def test(env):
 	print("random choice", env.randomChoice())
@@ -168,7 +183,10 @@ def test(env):
 '''
 if __name__ == "__main__":
 	env = DATA()
-	#test(env)
-	print(env)
 	agent = DQN(env)
-	print(agent.train())
+	scores = agent.train()
+	agent.save()
+	print(scores)
+	plt.plot(scores)
+	plt.savefig("test2.jpg")
+
