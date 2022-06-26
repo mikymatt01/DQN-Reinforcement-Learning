@@ -41,16 +41,17 @@ data=[
 
 result=['Labrador', 'Chihuahua', 'Husky', 'Carlino']
 
+questions = [2,3,1,0,2,3,1,0,2,3,1,0,2,3,1,0,2,3,1,0,2]
+
 class DATA():
 	def __init__(self):
 		print('init data')
 		self.data=data
-		self.success=0
 		self.input=len(data[0])
 		self.output=int(math.log(len(result), 2))
 		print("input atteso", self.input)
 		print("output atteso", self.output)
-		self.question=10
+		self.question=20
 		self.reward=5
 
 
@@ -58,7 +59,8 @@ class DATA():
 		return np.random.randint(low=0, high=1, size=(self.output)).tolist()
 
 	def randomQuestion(self):
-		i =  int(random.uniform(0, len(result)))
+		print(self.question)
+		i = questions[self.question]
 		q = data[i]
 		a = random.uniform(q['altezza'][0], q['altezza'][1])
 		l = random.uniform(q['lunghezza schiena'][0], q['lunghezza schiena'][1])
@@ -78,11 +80,17 @@ class DATA():
 		print("neural action is:{} and your action is:{}".format(action, result))
 		if self.question<=0:
 			done, self.question = True, 10  
-		else: 
+		else:
 			done, self.question = False, self.question - 1
-		
-		self.success = self.success+1 if action==result else self.success
-		reward = self.reward if action==result else 0
+		if action==result:
+			reward = self.reward  
+		else:
+			a=''
+			b=''
+			for x,y in action, result:
+				a+=str(x)
+				b+=str(y)
+			reward=int(b,2)-int(a,2)
 		return self.randomQuestion(), reward, done, 0 #next_state, reward, done, _
 
 	def preprocessState(self, state):
@@ -100,7 +108,7 @@ class DQN():
 		self.batch_size = batch_size
 		self.memory = deque(maxlen=100000)
 
-		alpha=0.01
+		alpha=0.1
 		alpha_decay=0.01
 		self.env=env
 		input=self.env.input #input number
@@ -108,14 +116,14 @@ class DQN():
 
 		#create model
 		self.model = Sequential()
-		self.model.add(Dense(24,input_dim=input, activation='tanh'))
-		self.model.add(Dense(48, activation='tanh'))
+		self.model.add(Dense(12,input_dim=input, activation='tanh'))
+		self.model.add(Dense(12, activation='tanh'))
 		self.model.add(Dense(output, activation='tanh')) #prevision must be 1 output
 		try:
 			self.model.load_weights('test2.h5')
 		except:
 			print("weights doesn't exist")
-		self.model.compile(loss='mse', optimizer=Adam(learning_rate=alpha, decay=alpha_decay))
+		self.model.compile(loss='mse', optimizer=Adam(learning_rate=alpha))#, decay=alpha_decay))
 		self.model.summary()
 
 	#store tuple in the memory
@@ -164,6 +172,7 @@ class DQN():
 			mean_score = np.mean(scores)
 			avg_scores.append(mean_score)
 			os.system("clear")
+			print("scores: {}".format(scores))
 			print("epochs:{} mean_score:{}".format(e, mean_score))
 			if mean_score >= THRESHOLD and e >= 100:
 				print('Ran {} episodes. Solved after {} trials ✔'.format(e, e - 100))
@@ -185,7 +194,7 @@ if __name__ == "__main__":
 	env = DATA()
 	agent = DQN(env)
 	scores = agent.train()
-	agent.save()
+	#agent.save()
 	print(scores)
 	plt.plot(scores)
 	plt.savefig("test2.jpg")
